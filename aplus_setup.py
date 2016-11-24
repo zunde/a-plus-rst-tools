@@ -7,20 +7,28 @@ If necessary, edit this setup to select the loaded directives.
 '''
 import toc_config
 import aplus_nodes
-from directives.meta import meta, Meta
+from directives.meta import AplusMeta
 from directives.questionnaire import Questionnaire, SingleChoice, MultipleChoice, FreeText, AgreeGroup, AgreeItem
 from directives.submit import SubmitForm
 
 def setup(app):
 
     # Register new settings.
+    app.add_config_value('course_title', None, 'html')
+    app.add_config_value('submit_title', "{config_title}", 'html')
     app.add_config_value('course_open_date', None, 'html')
     app.add_config_value('course_close_date', None, 'html')
     app.add_config_value('questionnaire_default_submissions', 5, 'html')
     app.add_config_value('program_default_submissions', 10, 'html')
+    app.add_config_value('default_min_group_size', 1, 'html')
+    app.add_config_value('default_max_group_size', 1, 'html')
+    app.add_config_value('default_late_date', None, 'html')
+    app.add_config_value('default_late_penalty', 0, 'html')
     app.add_config_value('use_wide_column', True, 'html')
     app.add_config_value('append_content', [], 'html')
     app.add_config_value('allow_assistant_viewing', True, 'html')
+    app.add_config_value('override', {}, 'html')
+    app.add_config_value('category_names', {}, 'html')
 
     # Connect configuration generation to events.
     app.connect('builder-inited', toc_config.prepare)
@@ -33,8 +41,11 @@ def setup(app):
     )
 
     # The directive for injecting document meta data.
-    app.add_node(meta)
-    app.add_directive('aplusmeta', Meta)
+    app.add_node(
+        aplus_nodes.aplusmeta,
+        html=(aplus_nodes.visit_ignore, aplus_nodes.depart_ignore)
+    )
+    app.add_directive('aplusmeta', AplusMeta)
 
     # The questionnaire directives.
     app.add_directive('questionnaire', Questionnaire)

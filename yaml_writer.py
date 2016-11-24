@@ -21,10 +21,24 @@ def file_path(env, name):
 def write(file_path, data_dict):
     ''' Writes dictionary into a yaml file '''
     with io.open(file_path, 'w', encoding='utf-8') as f:
-        f.write(yaml.dump(data_dict, default_flow_style=False, allow_unicode=True))
+        out = yaml.safe_dump(
+            data_dict,
+            default_flow_style=False,
+            allow_unicode=True
+        )
+        f.write(out.decode('utf-8') if hasattr(out, 'decode') else out)
 
 
 def read(file_path):
     ''' Reads dictionary from a yaml file '''
     with io.open(file_path, 'r', encoding='utf-8') as f:
         return yaml.load(f.read())
+
+
+def ensure_unicode(value):
+    try:
+        unicode
+    except NameError:
+        return value
+    else:
+        return unicode(value)

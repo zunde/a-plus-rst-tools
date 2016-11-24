@@ -2,17 +2,10 @@ from docutils import nodes
 from docutils.parsers.rst import directives
 from sphinx.util.compat import Directive
 
-
-class meta(nodes.General, nodes.Element):
-    ''' Hidden node that includes meta data. '''
-
-    def __init__(self, options={}):
-        self.tagname = 'meta'
-        self.options = options
-        super().__init__(rawsource='')
+from aplus_nodes import aplusmeta
 
 
-class Meta(Directive):
+class AplusMeta(Directive):
     ''' Injects document meta data for A+ configuration. '''
 
     has_content = False
@@ -21,9 +14,11 @@ class Meta(Directive):
     option_spec = {
         'open-time': directives.unchanged,
         'close-time': directives.unchanged,
-        'late-close': directives.unchanged,
+        'late-time': directives.unchanged,
         'late-penalty': directives.unchanged,
+        'audience': directives.unchanged,
+        'hidden': directives.flag,
     }
 
     def run(self):
-        return [meta(options=self.options)]
+        return [aplusmeta(options=self.options)]

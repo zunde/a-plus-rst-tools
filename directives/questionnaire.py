@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 '''
 Directives that define automatically assessed questionnaires.
 '''
@@ -10,6 +11,7 @@ from sphinx.util.nodes import nested_parse_with_titles
 import aplus_nodes
 import translations
 from directives.abstract_exercise import AbstractExercise
+from yaml_writer import ensure_unicode
 
 
 class Questionnaire(AbstractExercise):
@@ -19,6 +21,7 @@ class Questionnaire(AbstractExercise):
         'title': directives.unchanged,
         'chapter-feedback': directives.flag,
         'weekly-feedback': directives.flag,
+        'appendix-feedback': directives.flag,
         'course-feedback': directives.flag,
         'feedback': directives.flag,
         'submissions': directives.nonnegative_int,
@@ -27,33 +30,36 @@ class Questionnaire(AbstractExercise):
 
     def run(self):
         self.assert_has_content()
-        key, category, points = self.extract_exercise_arguments()
+        key, difficulty, points = self.extract_exercise_arguments()
 
         # Parse options.
-        classes = ['exercise']
+        classes = [u'exercise']
         is_feedback = False
         if 'chapter-feedback' in self.options:
-            classes.append('chapter-feedback')
+            classes.append(u'chapter-feedback')
             is_feedback = True
         if 'weekly-feedback' in self.options:
-            classes.append('weekly-feedback')
+            classes.append(u'weekly-feedback')
+            is_feedback = True
+        if 'appendix-feedback' in self.options:
+            classes.append(u'appendix-feedback')
             is_feedback = True
         if 'course-feedback' in self.options:
-            classes.append('course-feedback-questionnaire')
+            classes.append(u'course-feedback-questionnaire')
             is_feedback = True
         if 'feedback' in self.options:
             is_feedback = True
         if is_feedback:
-            key = 'feedback'
-            category = category or 'feedback'
-            classes.append('feedback')
+            key = u'feedback'
+            category = u'feedback'
+            classes.append(u'feedback')
         else:
-            category = category or 'exercise'
+            category = u'questionnaire'
 
         env = self.state.document.settings.env
-        #name = env.docname.replace('/', '_') + '_' + key
-        name = key
-        if is_feedback:
+        name = u"{}_{}".format(env.docname.replace(u'/', u'_'), key)
+        override = env.config.override
+        if is_feedback:  #TODO develop
             # Prefix feedback keys with <chapter>_
             name = env.docname.split('/')[-1] + "_" + name
 
@@ -61,20 +67,21 @@ class Questionnaire(AbstractExercise):
         env.question_count = 0
 
         # Create document elements.
-        node = aplus_nodes.html('div', {
-            'class': ' '.join(classes),
-            'data-aplus-exercise': 'yes',
-            'data-aplus-quiz': 'yes',
+        node = aplus_nodes.html(u'div', {
+            u'class': u' '.join(classes),
+            u'data-aplus-exercise': u'yes',
+            u'data-aplus-quiz': u'yes',
         })
-        form = aplus_nodes.html('form', {
-            'action': key,
-            'method': 'post',
+        form = aplus_nodes.html(u'form', {
+            u'action': key,
+            u'method': u'post',
         })
         nested_parse_with_titles(self.state, self.content, form)
-        submit = aplus_nodes.html('input', {
-            'type': 'submit',
-            'value': translations.get(env, 'submit'),
-            'class': 'btn btn-primary',
+
+        submit = aplus_nodes.html(u'input', {
+            u'type': u'submit',
+            u'value': translations.get(env, u'submit'),
+            u'class': u'btn btn-primary',
         })
         form.append(submit)
         node.append(form)
@@ -88,19 +95,27 @@ class Questionnaire(AbstractExercise):
 
         # Write configuration file.
         data = {
-            'key': name,
-            'category': category,
-            'max_points': points,
-            'max_submissions': self.options.get('submissions', env.config.questionnaire_default_submissions),
-            'points_to_pass': self.options.get('points-to-pass', 0),
-            'feedback': is_feedback,
-            'view_type': 'access.types.stdsync.createForm',
-            'title|i18n': title,
-            'fieldgroups': [{
-                'title': '',
-                'fields': ('#!children', None),
+            u'key': name,
+            u'category': category,
+            u'max_points': points,
+            u'difficulty': difficulty or '',
+            u'max_submissions': self.options.get('submissions', 0 if is_feedback else env.config.questionnaire_default_submissions),
+            u'min_group_size': 1 if is_feedback else env.config.default_min_group_size,
+            u'max_group_size': 1 if is_feedback else env.config.default_max_group_size,
+            u'points_to_pass': self.options.get('points-to-pass', 0),
+            u'feedback': is_feedback,
+            u'view_type': u'access.types.stdsync.createForm',
+            u'title|i18n': translations.opt('feedback') if is_feedback else translations.opt('exercise', postfix=u" {}".format(key)),
+            u'fieldgroups': [{
+                u'title': '',
+                u'fields': (u'#!children', None),
             }],
         }
+        if category in override:
+            data.update(override[category])
+            if 'url' in data:
+                data['url'] = data['url'].format(key=name)
+
         form.write_yaml(env, name, data, 'exercise')
 
         return [node]
@@ -116,6 +131,7 @@ class QuestionMixin:
     option_spec = {
         'class' : directives.class_option,
         'required': directives.flag,
+        'key': directives.unchanged,
     }
 
     def create_question(self, title_text=None, points=True):
@@ -123,32 +139,36 @@ class QuestionMixin:
         env.question_count += 1
 
         # Create base element and data.
-        node = aplus_nodes.html('div', {
-            'class': ' '.join(self.get_classes()),
+        node = aplus_nodes.html(u'div', {
+            u'class': u' '.join(self.get_classes()),
         })
         data = {
-            'type': self.grader_field_type(),
+            u'type': self.grader_field_type(),
+            u'extra_info': self.get_extra_info(),
         }
+        key = self.options.get('key', None)
+        if key:
+            data[u'key'] = ensure_unicode(key)
 
         # Add title.
         if not title_text is None:
-            data['title'] = title_text
+            data[u'title'] = title_text
         elif env.questionnaire_is_feedback:
-            data['title'] = title_text = ''
+            data[u'title'] = title_text = u''
         else:
-            data['title|i18n'] = translations.opt('question', postfix=(' ' + str(env.question_count)))
-            title_text = translations.get(env, 'question') + ' ' + str(env.question_count)
+            data[u'title|i18n'] = translations.opt('question', postfix=u" {:d}".format(env.question_count))
+            title_text = u"{} {:d}".format(translations.get(env, 'question'), env.question_count)
         if title_text:
-            title = aplus_nodes.html('label', {})
+            title = aplus_nodes.html(u'label', {})
             title.append(nodes.Text(title_text))
             node.append(title)
 
         # Add configuration.
         if points and len(self.arguments) > 0:
-            data['points'] = int(self.arguments[0])
+            data[u'points'] = int(self.arguments[0])
         if 'required' in self.options:
-            data['required'] = True
-        node.set_yaml(data, 'question')
+            data[u'required'] = True
+        node.set_yaml(data, u'question')
 
         return env, node, data
 
@@ -156,6 +176,7 @@ class QuestionMixin:
         if not plain_content:
             return
 
+        # TODO make more elegant, see aplus-submit .. lang:: fi etc
         plain_content_fi, plain_content_en = None, None
         for i, element in enumerate(plain_content):
             if "#EN" in element:
@@ -167,43 +188,42 @@ class QuestionMixin:
         else:
             plain_content_fi = plain_content
 
-        parent = aplus_nodes.html('div', {})
-        parent.store_html('more_fi')
+        parent = aplus_nodes.html(u'div', {})
+        parent.store_html(u'more_fi')
         nested_parse_with_titles(self.state, plain_content_fi, parent)
         node.append(parent)
 
         if plain_content_en is not None:
-            parent = aplus_nodes.html('div', {})
-            parent.store_html('more_en')
+            parent = aplus_nodes.html(u'div', {})
+            parent.store_html(u'more_en')
             nested_parse_with_titles(self.state, plain_content_en, parent)
             node.append(parent)
 
-        data['more|i18n'] = {'fi': ('#!html', 'more_fi'), 'en': ('#!html', 'more_en')}
-        # data['more'] = ('#!html', 'more')
-
+        data[u'more|i18n'] = {'fi': (u'#!html', u'more_fi'), 'en': (u'#!html', u'more_en')}
+        # data[u'more'] = (u'#!html', u'more')
 
     def add_feedback(self, node, data, paragraph):
         if not paragraph:
             return
 
         # Add feedback node for rendering without writing to file.
-        data['feedback'] = ('#!children', 'feedback')
-        feedbacks = aplus_nodes.html('p', {'class':'feedback-holder'}, no_write=True)
+        data[u'feedback'] = (u'#!children', u'feedback')
+        feedbacks = aplus_nodes.html(u'p', {u'class':u'feedback-holder'}, no_write=True)
 
         for i,line in slicer(paragraph):
-            if not '§' in line[0]:
-                raise SphinxError('Feedback separator § exptected: {}'.format(line[0]))
-            value,content = line[0].split('§', 1)
+            if not u'§' in line[0]:
+                raise SphinxError(u'Feedback separator § exptected: {}'.format(line[0]))
+            value,content = line[0].split(u'§', 1)
             value = value.strip()
             line[0] = content.strip()
             isnot = False
-            if value.startswith('!'):
+            if value.startswith(u'!'):
                 isnot = True
                 value = value[1:]
 
             # Create document elements.
-            hint = aplus_nodes.html('div')
-            text = aplus_nodes.html('p', {})
+            hint = aplus_nodes.html(u'div')
+            text = aplus_nodes.html(u'p', {})
             text.store_html('hint')
             nested_parse_with_titles(self.state, line, text)
             hint.append(text)
@@ -216,23 +236,29 @@ class QuestionMixin:
 
             # Add configuration data.
             fbdata = {
-                'value': value,
-                'label|i18n': {'fi': line_fi, 'en': line_en},
+                u'value': value,
+                # u'label': (u'#!html', u'hint'),
+                'label|i18n': {'fi': line_fi, 'en': line_en}, #TODO
             }
             if isnot:
-                fbdata['not'] = True
-            hint.set_yaml(fbdata, 'feedback')
+                fbdata[u'not'] = True
+            hint.set_yaml(fbdata, u'feedback')
 
         node.append(feedbacks)
 
     def get_classes(self):
-        classes = ['form-group']
+        classes = [u'form-group']
         if 'class' in self.options:
             classes.extend(self.options['class'])
         return classes
 
+    def get_extra_info(self):
+        return {
+            u'class': u' '.join(self.get_classes()),
+        }
+
     def grader_field_type(self):
-        return 'undefined'
+        return u'undefined'
 
 
 class Choice(QuestionMixin, Directive):
@@ -246,7 +272,7 @@ class Choice(QuestionMixin, Directive):
         self.assert_has_content()
 
         # Detect paragraphs: any number of plain content, choices and optional feedback.
-        empty_lines = list(loc for loc,line in enumerate(self.content) if line == '')
+        empty_lines = list(loc for loc,line in enumerate(self.content) if line == u'')
         plain_content = None
         choices = []
         feedback = []
@@ -260,9 +286,9 @@ class Choice(QuestionMixin, Directive):
                     return None, self.content[:empty_lines[-1]]
 
             # Backwards compatibility for skipping feedback paragraph.
-            if len(last) == 1 and last[0].startswith('I hereby declare that no feedback '):
+            if len(last) == 1 and last[0].startswith(u'I hereby declare that no feedback '):
                 plain_content, choices = split_second_last(empty_lines)
-            elif all('§' in line for line in last):
+            elif all(u'§' in line for line in last):
                 plain_content, choices = split_second_last(empty_lines)
                 feedback = last
             else:
@@ -274,37 +300,37 @@ class Choice(QuestionMixin, Directive):
         # Create question.
         env, node, data = self.create_question()
         self.add_instructions(node, data, plain_content)
-        data['options'] = ('#!children', 'option')
+        data[u'options'] = (u'#!children', u'option')
 
         # Travel all answer options.
         for i,line in slicer(choices):
 
             # Split choice key off.
-            key,content = line[0].split(' ', 1)
+            key,content = line[0].split(u' ', 1)
             key = key.strip()
             line[0] = content.strip()
 
             # Trim the key.
             correct = False
-            if key.startswith('*'):
+            if key.startswith(u'*'):
                 correct = True
                 key = key[1:]
-            if key.endswith('.'):
+            if key.endswith(u'.'):
                 key = key[:-1]
 
             # Create document elements.
-            choice = aplus_nodes.html('div', {'class':'radio'})
-            label = aplus_nodes.html('label', {})
-            label.append(aplus_nodes.html('input', {
-                'type': self.input_type(),
-                'name': 'field_{:d}'.format(env.question_count - 1),
-                'value': key,
+            choice = aplus_nodes.html(u'div', {u'class':u'radio'})
+            label = aplus_nodes.html(u'label', {})
+            label.append(aplus_nodes.html(u'input', {
+                u'type': self.input_type(),
+                u'name': u'field_{:d}'.format(env.question_count - 1),
+                u'value': key,
             }))
             choice.append(label)
             node.append(choice)
 
-            text = aplus_nodes.html('span', {})
-            text.store_html('label')
+            text = aplus_nodes.html(u'span', {})
+            text.store_html(u'label')
             nested_parse_with_titles(self.state, line, text)
             label.append(text)
 
@@ -315,13 +341,13 @@ class Choice(QuestionMixin, Directive):
 
             # Add configuration data.
             optdata = {
-                'value': key,
-                'label|i18n': {'fi': line_fi, 'en': line_en},
-                # 'label': ('#!html', 'label'),
+                u'value': key,
+                # u'label': (u'#!html', u'label'),
+                'label|i18n': {'fi': line_fi, 'en': line_en}, # TODO
             }
             if correct:
-                optdata['correct'] = True
-            choice.set_yaml(optdata, 'option')
+                optdata[u'correct'] = True
+            choice.set_yaml(optdata, u'option')
 
         self.add_feedback(node, data, feedback)
 
@@ -332,26 +358,26 @@ class SingleChoice(Choice):
     ''' Lists options for picking the correct one. '''
 
     def form_group_class(self):
-        return 'form-pick-one'
+        return u'form-pick-one'
 
     def grader_field_type(self):
-        return 'radio'
+        return u'radio'
 
     def input_type(self):
-        return 'radio'
+        return u'radio'
 
 
 class MultipleChoice(Choice):
     ''' Lists options for picking all the correct ones. '''
 
     def form_group_class(self):
-        return 'form-pick-any'
+        return u'form-pick-any'
 
     def grader_field_type(self):
-        return 'checkbox'
+        return u'checkbox'
 
     def input_type(self):
-        return 'checkbox'
+        return u'checkbox'
 
 
 class FreeText(QuestionMixin, Directive):
@@ -369,12 +395,15 @@ class FreeText(QuestionMixin, Directive):
         'no-standard-prompt': directives.flag,
         'shorter-prompt': directives.flag,
         'class': directives.class_option,
+        'required': directives.flag,
+        'key': directives.unchanged,
+        'extra': directives.unchanged,
     }
 
     def run(self):
-        self.length = self.options.get('length', 50)
+        self.length = self.options.get('length', None)
         self.height = self.options.get('height', 1)
-        position = 'place-on-own-line' if self.height > 1 or 'own-line' in self.options else 'place-inline'
+        self.position = u'place-on-own-line' if self.height > 1 or u'own-line' in self.options else u'place-inline'
 
         # Detect paragraphs: any number of plain content and correct answer including optional feedback
         plain_content = None
@@ -383,7 +412,7 @@ class FreeText(QuestionMixin, Directive):
         if env.questionnaire_is_feedback:
             plain_content = self.content
         else:
-            empty_lines = list(loc for loc,line in enumerate(self.content) if line == u'')
+            empty_lines = list(loc for loc,line in enumerate(self.content) if line == u"")
             if len(empty_lines) > 0:
                 plain_content = self.content[:empty_lines[-1]]
                 config_content = self.content[(empty_lines[-1] + 1):]
@@ -396,48 +425,73 @@ class FreeText(QuestionMixin, Directive):
 
         # Create input element.
         if self.height > 1:
-            element = aplus_nodes.html('textarea', {
-                'rows': self.height,
-                'cols': self.length,
-                'class': position,
-            })
+            attrs = {
+                u'rows': self.height,
+                u'class': self.position,
+            }
+            if self.length:
+                attrs[u'cols'] = self.length
+            element = aplus_nodes.html(u'textarea', attrs)
         else:
-            element = aplus_nodes.html('input', {
-                'type': 'text',
-                'size': self.length,
-                'class': position,
-            })
+            attrs = {
+                u'type': u'text',
+                u'class': self.position,
+            }
+            if self.length:
+                attrs[u'size'] = self.length
+            element = aplus_nodes.html(u'input', attrs)
         node.append(element)
 
         # Add configuration.
         if len(self.arguments) > 1:
-            data['compare_method'] = self.arguments[1]
+            data[u'compare_method'] = self.arguments[1]
+
         if config_content:
-            if '§' in config_content[0]:
-                data['correct'] = config_content[0].split('§', 1)[0].strip()
+            fb = None
+            if u'§' in config_content[0]:
+                correct,fb = config_content[0].split(u'§', 1)
             else:
-                data['correct'] = config_content[0].strip()
+                correct = config_content[0]
                 config_content = config_content[1:]
+            if u'°=°' in correct:
+                correct,model = correct.split(u'°=°', 1)
+                data[u'model'] = model.strip().replace(u"°°°", u"\n")
+                if fb:
+                    config_content[0] = correct.strip() + u" § " + fb.strip()
+            data[u'correct'] = correct.strip().replace(u"°°°", u"\n")
             self.add_feedback(node, data, config_content)
 
         return [node]
 
-    def grader_field_type(self):
-        return 'textarea' if self.height > 1 else 'text'
-
     def get_classes(self):
-        classes = super().get_classes()
+        classes = super(FreeText, self).get_classes()
         if 'main-feedback' in self.options:
-            classes.append('main-feedback-question')
+            classes.append(u'main-feedback-question')
         if 'required' in self.options:
-            classes.append('required')
+            classes.append(u'required')
         else:
-            classes.append('voluntary')
+            classes.append(u'voluntary')
         if not 'no-standard-prompt' in self.options:
-            classes.append('standard')
+            classes.append(u'standard')
         if 'shorter-prompt' in self.options:
-            classes.append('shorter')
+            classes.append(u'shorter')
+        classes.append(self.position)
         return classes
+
+    def get_extra_info(self):
+        data = super(FreeText, self).get_extra_info()
+        for entry in self.options.get('extra', '').split(u';'):
+            parts = entry.split(u'=', 1)
+            if len(parts) == 2:
+                try:
+                    parts[1] = int(parts[1])
+                except ValueError:
+                    pass
+                data[parts[0]] = parts[1]
+        return data
+
+    def grader_field_type(self):
+        return u'textarea' if self.height > 1 else u'text'
 
 
 class AgreeGroup(Directive):
@@ -449,7 +503,7 @@ class AgreeGroup(Directive):
 
     def run(self):
         # This directive is obsolete, AgreeItems can be placed alone.
-        node = aplus_nodes.html('div', {'class':'agreement-group'})
+        node = aplus_nodes.html(u'div', {u'class':u'agreement-group'})
         nested_parse_with_titles(self.state, self.content, node)
         return  [node]
 
@@ -468,22 +522,22 @@ class AgreeItem(QuestionMixin, Directive):
 
         for i, key in enumerate(['agreement4', 'agreement3', 'agreement2', 'agreement1', 'agreement0']):
             options.append({
-                'value': 4 - i,
-                'label|i18n': translations.opt(key),
+                u'value': 4 - i,
+                u'label|i18n': translations.opt(key),
             })
-            choice = aplus_nodes.html('div', {'class':'radio'})
-            label = aplus_nodes.html('label', {})
-            label.append(aplus_nodes.html('input', {
-                'type': 'radio',
-                'name': 'field_{:d}'.format(env.question_count - 1),
-                'value': 4 - i,
+            choice = aplus_nodes.html(u'div', {u'class':u'radio'})
+            label = aplus_nodes.html(u'label', {})
+            label.append(aplus_nodes.html(u'input', {
+                u'type': u'radio',
+                u'name': u'field_{:d}'.format(env.question_count - 1),
+                u'value': 4 - i,
             }))
             label.append(nodes.Text(translations.get(env, key)))
             choice.append(label)
             node.append(choice)
 
-        data['options'] = options
+        data[u'options'] = options
         return [node]
 
     def grader_field_type(self):
-        return 'radio'
+        return u'radio'
