@@ -59,7 +59,7 @@ class Questionnaire(AbstractExercise):
         env = self.state.document.settings.env
         name = u"{}_{}".format(env.docname.replace(u'/', u'_'), key)
         override = env.config.override
-        if is_feedback:  #TODO develop
+        if is_feedback:  #TODO develop
             # Prefix feedback keys with <chapter>_
             name = env.docname.split('/')[-1] + "_" + name
 
@@ -238,7 +238,7 @@ class QuestionMixin:
             fbdata = {
                 u'value': value,
                 # u'label': (u'#!html', u'hint'),
-                'label|i18n': {'fi': line_fi, 'en': line_en}, #TODO
+                'label|i18n': {'fi': line_fi, 'en': line_en}, #TODO
             }
             if isnot:
                 fbdata[u'not'] = True
@@ -343,7 +343,7 @@ class Choice(QuestionMixin, Directive):
             optdata = {
                 u'value': key,
                 # u'label': (u'#!html', u'label'),
-                'label|i18n': {'fi': line_fi, 'en': line_en}, # TODO
+                'label|i18n': {'fi': line_fi, 'en': line_en}, # TODO
             }
             if correct:
                 optdata[u'correct'] = True
