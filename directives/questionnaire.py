@@ -91,7 +91,7 @@ class Questionnaire(AbstractExercise):
         elif is_feedback:
             title = translations.opt('feedback')
         else:
-            title = translations.opt('exercise', postfix=(' ' + key))
+            title = translations.opt('exercise', postfix=u" {}".format(key))
 
         # Write configuration file.
         data = {
@@ -105,7 +105,7 @@ class Questionnaire(AbstractExercise):
             u'points_to_pass': self.options.get('points-to-pass', 0),
             u'feedback': is_feedback,
             u'view_type': u'access.types.stdsync.createForm',
-            u'title|i18n': translations.opt('feedback') if is_feedback else translations.opt('exercise', postfix=u" {}".format(key)),
+            u'title|i18n': title,
             u'fieldgroups': [{
                 u'title': '',
                 u'fields': (u'#!children', None),
