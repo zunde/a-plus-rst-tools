@@ -93,6 +93,10 @@ class Questionnaire(AbstractExercise):
         else:
             title = translations.opt('exercise', postfix=u" {}".format(key))
 
+        if difficulty and env.config.exercise_difficulty_is_category:
+            category = difficulty
+            difficulty = ''
+
         # Write configuration file.
         data = {
             u'key': name,

@@ -76,12 +76,17 @@ class SubmitForm(AbstractExercise):
         config_title = self.options.get('title', config_title)
 
         category = u'submit'
+
+        if difficulty and env.config.exercise_difficulty_is_category:
+            category = difficulty
+            difficulty = ''
+
         data.update({
             u'key': name,
             u'title': env.config.submit_title.format(
                 key_title=key_title, config_title=config_title
             ),
-            u'category': u'submit',
+            u'category': category,
             u'scale_points': points,
             u'difficulty': difficulty or '',
             u'max_submissions': self.options.get('submissions', env.config.program_default_submissions),

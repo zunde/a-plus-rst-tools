@@ -29,6 +29,7 @@ def setup(app):
     app.add_config_value('allow_assistant_viewing', True, 'html')
     app.add_config_value('override', {}, 'html')
     app.add_config_value('category_names', {}, 'html')
+    app.add_config_value('exercise_difficulty_is_category', False, 'html')
 
     # Connect configuration generation to events.
     app.connect('builder-inited', toc_config.prepare)
