@@ -85,8 +85,9 @@ def write(app, exception):
                     u'max_group_size': config.get(u'max_group_size', 1),
                 }
             allow_assistant_viewing = config.get('allow_assistant_viewing', app.config.allow_assistant_viewing)
+            allow_assistant_grading = config.get('allow_assistant_grading', app.config.allow_assistant_grading)
             exercise.update({
-                u'allow_assistant_grading': False,
+                u'allow_assistant_grading': allow_assistant_grading,
                 u'status': u'unlisted',
             })
             if u'scale_points' in config:

@@ -27,6 +27,7 @@ def setup(app):
     app.add_config_value('use_wide_column', True, 'html')
     app.add_config_value('append_content', [], 'html')
     app.add_config_value('allow_assistant_viewing', True, 'html')
+    app.add_config_value('allow_assistant_grading', False, 'html')
     app.add_config_value('override', {}, 'html')
     app.add_config_value('category_names', {}, 'html')
     app.add_config_value('exercise_difficulty_is_category', False, 'html')
