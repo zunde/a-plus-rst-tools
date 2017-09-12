@@ -195,7 +195,7 @@ def write(app, exception):
     # Write the configuration index.
     config = {
         u'name': course_title,
-        u'language': app.config.language,
+        #u'language': app.config.language,
         u'static_dir': outdir,
         u'modules': modules,
         u'categories': categories,
